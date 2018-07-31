@@ -25,3 +25,10 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
     return rmse;
 
 }
+
+
+double Tools::AdjustAngle(double angle) {
+    while (angle < -PI)  angle += 2*PI;
+    while (angle >  PI)  angle -= 2*PI;
+    return angle;
+}
