@@ -26,11 +26,15 @@ UKF::UKF() {
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
 
+    
+    // PRIMEIRA SOLUCAO   sta_a_ = 7.0  e std_yawdd_ = 0.9
+    // SEGUNDA SOLUCAO   sta_a_ = 0.9  e std_yawdd_ = 0.5
+
   // Process noise standard deviation longitudinal acceleration in m/s^2
-    std_a_ = 9.0;
+    std_a_ = 0.9;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-    std_yawdd_ = 0.9;
+    std_yawdd_ = 0.5;
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // Laser measurement noise standard deviation position1 in m
@@ -82,15 +86,18 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   measurements.
   */
 
+    int n_x = 5;
+    int n_aug = 7;
+    double lambda = 3 - n_aug;
+
+    
 	if (!is_initialized_) {
 		cout << endl << "Initialized";
 
 		if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
-//			cout << endl << "Initialized LASER";
 			x_ <<  meas_package.raw_measurements_(0), meas_package.raw_measurements_(1), 0,0,0;
 		}
 		if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
-//			cout << endl << "Initialized RADAR";
 			double r = meas_package.raw_measurements_(0);
 		    double theta = meas_package.raw_measurements_(1);
 		    x_ << r*cos(theta), r*sin(theta), 0,0,0;
@@ -102,6 +109,15 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         0,   0, 10,   0,   0,
         0,   0,   0, 10,   0,
         0,   0,   0,   0, .01;
+        
+        weights_ = VectorXd(2*n_aug + 1);
+        weights_(0) = 1.0 / (2*n_aug + 1);
+        weights_(0) = lambda / (lambda + n_aug);
+        for (int i=1; i<2*n_aug + 1; i++) {
+            weights_(i) = 1.0 / (2*n_aug + 1);
+            weights_(i) = 0.5 / (n_aug + lambda);
+        }
+
 
 		is_initialized_ = true;
 		time_us_ = meas_package.timestamp_;
@@ -109,16 +125,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 		return;
 	}
 
-//	cout << endl << "Predict";
-
-
     double deltaT = (meas_package.timestamp_ - time_us_) / 1000000.0;
 
-//	cout << endl << "deltaT" << endl << deltaT;
-
-	int n_x = 5;
-	int n_aug = 7;
-	double lambda = 3 - n_aug;
 	VectorXd x_aug = VectorXd(n_aug);
 	MatrixXd P_aug = MatrixXd(n_aug,n_aug);
 	MatrixXd Xsig_aug = MatrixXd(n_aug, 2*n_aug + 1);
@@ -126,36 +134,22 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 	x_aug.fill(0);
 	x_aug.block(0,0,n_x,1) = x_;
     x_aug(3) = AdjustAngle(x_aug(3));
-
-//    cout << endl << "x_ (1)" << endl << x_;
-
-//    cout << endl << "x_aug" << endl << x_aug;
     
 	P_aug.fill(0);
 	P_aug.block(0,0,n_x,n_x) = P_;
 	P_aug(5,5) = std_a_ * std_a_;
 	P_aug(6,6) = std_yawdd_ * std_yawdd_;
-//    cout << endl << "P_aug" << endl << P_aug;
 
 
     MatrixXd A = P_aug.llt().matrixL();
-
-//	cout << endl << "A" << endl << A;
 
 	double f = sqrt(lambda + n_aug);
 	Xsig_aug.block(0,0,n_aug,1) = x_aug;
 	for (int i=0; i<n_aug; i++) {
 		Xsig_aug.block(0,i + 1 + 0,    n_aug,1) = x_aug + f*A.block(0,i,n_aug,1);
 		Xsig_aug.block(0,i + 1 + n_aug,n_aug,1) = x_aug - f*A.block(0,i,n_aug,1);
-        Xsig_aug(3,i + 1 + 0)     = AdjustAngle(Xsig_aug(3,i + 1 + 0));
-        Xsig_aug(3,i + 1 + n_aug) = AdjustAngle(Xsig_aug(3,i + 1 + n_aug));
-
 	}
     
-
-
-//	cout << endl << "Xsig_aug" << endl << Xsig_aug;
-
 	MatrixXd Xsig_pred = MatrixXd(n_x, 2*n_aug + 1);
 	for (int i=0; i<2*n_aug + 1; i++) {
         //extract values for better readability
@@ -200,39 +194,20 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         Xsig_pred(4,i) = yawd_p;
 	}
 
-//	cout << endl << "Xsig_pred" << endl << Xsig_pred;
-
-	VectorXd weights = VectorXd(2*n_aug + 1);
-    weights(0) = 1.0 / (2*n_aug + 1);
-    weights(0) = lambda / (lambda + n_aug);
-	for (int i=1; i<2*n_aug + 1; i++) {
-		weights(i) = 1.0 / (2*n_aug + 1);
-        weights(i) = 0.5 / (n_aug + lambda);
-	}
-
-//	cout << endl << "weights" << endl << weights;
-
 	x_.fill(0);
 	for (int i=0; i<2*n_aug + 1; i++) {
-		x_ = x_ + weights(i)*Xsig_pred.block(0,i,n_x,1);
-        x_(3) = AdjustAngle(x_(3));
+		x_ = x_ + weights_(i)*Xsig_pred.block(0,i,n_x,1);
 	}
-
-//	cout << endl << "x_ (2)" << endl << x_;
-
+    x_(3) = AdjustAngle(x_(3));
+    
 	P_.fill(0);
 	for (int i=0; i<2*n_aug + 1; i++) {
         VectorXd x_diff = Xsig_pred.col(i) - x_;
         x_diff(3) = AdjustAngle(x_diff(3));
-		P_ = P_ + weights(i) * x_diff * x_diff.transpose();
+		P_ = P_ + weights_(i) * x_diff * x_diff.transpose();
 	}
 
-//	cout << endl << "P_" << endl << P_;
-
-
 	if (meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_) {
-//		cout << endl << "Process LASER";
-        
         int n_z = 2;
         MatrixXd Zsig = MatrixXd(n_z, 2*n_aug+1);
         VectorXd z_pred = VectorXd(n_z);
@@ -246,7 +221,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         
         z_pred.fill(0);
         for (int i=0; i<2*n_aug + 1; i++) {
-            z_pred = z_pred + weights(i)*Zsig.block(0,i,n_z,1);
+            z_pred = z_pred + weights_(i)*Zsig.block(0,i,n_z,1);
         }
         
         MatrixXd S = MatrixXd(n_z,n_z);
@@ -254,7 +229,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         for (int i = 0; i < 2 * n_aug + 1; i++) {  //2n+1 simga points
             //residual
             VectorXd z_diff = Zsig.col(i) - z_pred;
-            S = S + weights(i) * z_diff * z_diff.transpose();
+            S = S + weights_(i) * z_diff * z_diff.transpose();
         }
 
         MatrixXd R = MatrixXd(n_z, n_z);
@@ -269,7 +244,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         for (int i = 0; i < 2 * n_aug + 1; i++) {  //2n+1 simga points
             VectorXd z_diff = Zsig.col(i) - z_pred;
             VectorXd x_diff = Xsig_pred.col(i) - x_;
-            Tc = Tc + weights(i) * x_diff * z_diff.transpose();
+            Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
         }
 
         MatrixXd K = Tc * S.inverse();
@@ -295,7 +270,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 			double py      = Xsig_pred(1,i);
 			double v       = Xsig_pred(2,i);
 			double rho     = Xsig_pred(3,i);
-//			double rho_dot = Xsig_pred(4,i);
 
 			double r = sqrt(px*px + py*py);
 			double alpha = atan2(py,px);
@@ -306,16 +280,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 			Zsig(2,i) = r_dot;
 		}
 
-//		cout << endl << "Zsig" << endl << Zsig;
-
-
 		z_pred.fill(0);
 		for (int i=0; i<2*n_aug + 1; i++) {
-			z_pred = z_pred + weights(i)*Zsig.block(0,i,n_z,1);
+			z_pred = z_pred + weights_(i)*Zsig.block(0,i,n_z,1);
 		}
         z_pred(1) = AdjustAngle(z_pred(1));
-
-//		cout << endl << "z_pred" << endl << z_pred;
 
 
         MatrixXd S = MatrixXd(n_z,n_z);
@@ -324,18 +293,14 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             //residual
             VectorXd z_diff = Zsig.col(i) - z_pred;
             z_diff(1) = AdjustAngle(z_diff(1));
-            S = S + weights(i) * z_diff * z_diff.transpose();
+            S = S + weights_(i) * z_diff * z_diff.transpose();
         }
-
-//		cout << endl << "S" << endl << S;
 
 		MatrixXd R = MatrixXd(n_z, n_z);
 		R.fill(0);
 		R(0,0) = std_radr_ * std_radr_;
 		R(1,1) = std_radphi_ * std_radphi_;
 		R(2,2) = std_radrd_ * std_radrd_;
-
-//		cout << endl << "R" << endl << R;
 
 		S = S + R;
 
@@ -346,13 +311,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             z_diff(1) = AdjustAngle(z_diff(1));
             VectorXd x_diff = Xsig_pred.col(i) - x_;
             x_diff(3) = AdjustAngle(x_diff(3));
-            Tc = Tc + weights(i) * x_diff * z_diff.transpose();
+            Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
         }
-//		cout << endl << "Tc" << endl << Tc;
-
+        
 		MatrixXd K = Tc * S.inverse();
-
-		//cout << endl << "K" << endl << K;
 
 
 		VectorXd z = VectorXd(n_z);
@@ -361,18 +323,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         VectorXd z_diff = z - z_pred;
         z_diff(1) = AdjustAngle(z_diff(1));
         
-//		cout << endl << "z" << endl << z;
-
-//        cout << endl << "x_ (3) " << endl << x_;
-
         x_ = x_ + K * z_diff;
         x_(3) = AdjustAngle(x_(3));
-   //
-//        cout << endl << "x_ (4) " << endl << x_;
-
+   
 		P_ = P_ - K * S * K.transpose();
-
- //       cout << endl << "P_" << endl << P_;
 
 	}
 	time_us_ = meas_package.timestamp_;
