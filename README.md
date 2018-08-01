@@ -41,7 +41,7 @@ It is waiting for tcp/ip connection on port to 4567 to receive update measures f
 
 Finally, run the simulator. An example for execution:
 
-[ukf.webm](ukf.webm)
+[ukf.mov](ukf.mov)
 
 We could obtain a **root mean square error** as:
 
