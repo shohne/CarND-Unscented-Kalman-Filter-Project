@@ -98,12 +98,12 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         0,   0,   0, 10,   0,
         0,   0,   0,   0, .01;
         
-        weights_ = VectorXd(2*n_aug + 1);
-        weights_(0) = 1.0 / (2*n_aug + 1);
-        weights_(0) = lambda / (lambda + n_aug);
-        for (int i=1; i<2*n_aug + 1; i++) {
-            weights_(i) = 1.0 / (2*n_aug + 1);
-            weights_(i) = 0.5 / (n_aug + lambda);
+        weights_ = VectorXd(2*n_aug_ + 1);
+        weights_(0) = 1.0 / (2*n_aug_ + 1);
+        weights_(0) = lambda_ / (lambda_ + n_aug_);
+        for (int i=1; i<2*n_aug_ + 1; i++) {
+            weights_(i) = 1.0 / (2*n_aug_ + 1);
+            weights_(i) = 0.5 / (n_aug_ + lambda_);
         }
         
         
@@ -141,31 +141,31 @@ void UKF::Prediction(double deltaT) {
      */
     
     
-    VectorXd x_aug = VectorXd(n_aug);
-    MatrixXd P_aug = MatrixXd(n_aug,n_aug);
-    MatrixXd Xsig_aug = MatrixXd(n_aug, 2*n_aug + 1);
+    VectorXd x_aug = VectorXd(n_aug_);
+    MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+    MatrixXd Xsig_aug = MatrixXd(n_aug_, 2*n_aug_ + 1);
     
     x_aug.fill(0);
-    x_aug.block(0,0,n_x,1) = x_;
+    x_aug.block(0,0,n_x_,1) = x_;
     x_aug(3) = tools.AdjustAngle(x_aug(3));
     
     P_aug.fill(0);
-    P_aug.block(0,0,n_x,n_x) = P_;
+    P_aug.block(0,0,n_x_,n_x_) = P_;
     P_aug(5,5) = std_a_ * std_a_;
     P_aug(6,6) = std_yawdd_ * std_yawdd_;
     
     
     MatrixXd A = P_aug.llt().matrixL();
     
-    double f = sqrt(lambda + n_aug);
-    Xsig_aug.block(0,0,n_aug,1) = x_aug;
-    for (int i=0; i<n_aug; i++) {
-        Xsig_aug.block(0,i + 1 + 0,    n_aug,1) = x_aug + f*A.block(0,i,n_aug,1);
-        Xsig_aug.block(0,i + 1 + n_aug,n_aug,1) = x_aug - f*A.block(0,i,n_aug,1);
+    double f = sqrt(lambda_ + n_aug_);
+    Xsig_aug.block(0,0,n_aug_,1) = x_aug;
+    for (int i=0; i<n_aug_; i++) {
+        Xsig_aug.block(0,i + 1 + 0,     n_aug_,1) = x_aug + f*A.block(0,i,n_aug_,1);
+        Xsig_aug.block(0,i + 1 + n_aug_,n_aug_,1) = x_aug - f*A.block(0,i,n_aug_,1);
     }
     
-    Xsig_pred_ = MatrixXd(n_x, 2*n_aug + 1);
-    for (int i=0; i<2*n_aug + 1; i++) {
+    Xsig_pred_ = MatrixXd(n_x_, 2*n_aug_ + 1);
+    for (int i=0; i<2*n_aug_ + 1; i++) {
         //extract values for better readability
         double p_x = Xsig_aug(0,i);
         double p_y = Xsig_aug(1,i);
@@ -209,13 +209,13 @@ void UKF::Prediction(double deltaT) {
     }
     
     x_.fill(0);
-    for (int i=0; i<2*n_aug + 1; i++) {
-        x_ = x_ + weights_(i)*Xsig_pred_.block(0,i,n_x,1);
+    for (int i=0; i<2*n_aug_ + 1; i++) {
+        x_ = x_ + weights_(i)*Xsig_pred_.block(0,i,n_x_,1);
     }
     x_(3) = tools.AdjustAngle(x_(3));
     
     P_.fill(0);
-    for (int i=0; i<2*n_aug + 1; i++) {
+    for (int i=0; i<2*n_aug_ + 1; i++) {
         VectorXd x_diff = Xsig_pred_.col(i) - x_;
         x_diff(3) = tools.AdjustAngle(x_diff(3));
         P_ = P_ + weights_(i) * x_diff * x_diff.transpose();
@@ -238,10 +238,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
      */
     
     int n_z = 2;
-    MatrixXd Zsig = MatrixXd(n_z, 2*n_aug+1);
+    MatrixXd Zsig = MatrixXd(n_z, 2*n_aug_+1);
     VectorXd z_pred = VectorXd(n_z);
     
-    for (int i=0; i<2*n_aug + 1; i++) {
+    for (int i=0; i<2*n_aug_ + 1; i++) {
         double px      = Xsig_pred_(0,i);
         double py      = Xsig_pred_(1,i);
         Zsig(0,i) = px;
@@ -249,13 +249,13 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     }
     
     z_pred.fill(0);
-    for (int i=0; i<2*n_aug + 1; i++) {
+    for (int i=0; i<2*n_aug_ + 1; i++) {
         z_pred = z_pred + weights_(i)*Zsig.block(0,i,n_z,1);
     }
     
     MatrixXd S = MatrixXd(n_z,n_z);
     S.fill(0.0);
-    for (int i = 0; i < 2 * n_aug + 1; i++) {  //2n+1 simga points
+    for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
         //residual
         VectorXd z_diff = Zsig.col(i) - z_pred;
         S = S + weights_(i) * z_diff * z_diff.transpose();
@@ -268,9 +268,9 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     
     S = S + R;
     
-    MatrixXd Tc = MatrixXd(n_x, n_z);
+    MatrixXd Tc = MatrixXd(n_x_, n_z);
     Tc.fill(0);
-    for (int i = 0; i < 2 * n_aug + 1; i++) {  //2n+1 simga points
+    for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
         VectorXd z_diff = Zsig.col(i) - z_pred;
         VectorXd x_diff = Xsig_pred_.col(i) - x_;
         Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
@@ -304,10 +304,10 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
      */
     
     int n_z = 3;
-    MatrixXd Zsig = MatrixXd(n_z, 2*n_aug+1);
+    MatrixXd Zsig = MatrixXd(n_z, 2*n_aug_+1);
     VectorXd z_pred = VectorXd(n_z);
     
-    for (int i=0; i<2*n_aug + 1; i++) {
+    for (int i=0; i<2*n_aug_ + 1; i++) {
         double px      = Xsig_pred_(0,i);
         double py      = Xsig_pred_(1,i);
         double v       = Xsig_pred_(2,i);
@@ -323,7 +323,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     }
     
     z_pred.fill(0);
-    for (int i=0; i<2*n_aug + 1; i++) {
+    for (int i=0; i<2*n_aug_ + 1; i++) {
         z_pred = z_pred + weights_(i)*Zsig.block(0,i,n_z,1);
     }
     z_pred(1) = tools.AdjustAngle(z_pred(1));
@@ -331,7 +331,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     
     MatrixXd S = MatrixXd(n_z,n_z);
     S.fill(0.0);
-    for (int i = 0; i < 2 * n_aug + 1; i++) {  //2n+1 simga points
+    for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
         //residual
         VectorXd z_diff = Zsig.col(i) - z_pred;
         z_diff(1) = tools.AdjustAngle(z_diff(1));
@@ -346,9 +346,9 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     
     S = S + R;
     
-    MatrixXd Tc = MatrixXd(n_x, n_z);
+    MatrixXd Tc = MatrixXd(n_x_, n_z);
     Tc.fill(0);
-    for (int i = 0; i < 2 * n_aug + 1; i++) {  //2n+1 simga points
+    for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
         VectorXd z_diff = Zsig.col(i) - z_pred;
         z_diff(1) = tools.AdjustAngle(z_diff(1));
         VectorXd x_diff = Xsig_pred_.col(i) - x_;

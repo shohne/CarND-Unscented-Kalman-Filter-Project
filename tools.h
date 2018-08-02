@@ -25,7 +25,10 @@ public:
      * A helper method to calculate RMSE.
      */
     VectorXd CalculateRMSE(const vector<VectorXd> &estimations, const vector<VectorXd> &ground_truth);
-    
+
+    /**
+     * A helper method to find related angle between -PI and PI.
+     */
     double AdjustAngle(double angle);
     
 };
